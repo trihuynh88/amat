@@ -1,0 +1,141 @@
+/*
+* Copyright (C) 2014  Fernando Amat
+* See license.txt for full license and copyright notice.
+*
+* Authors: Fernando Amat
+*  mainTest_klnIO.cxx
+*
+*  Created on: October 1st, 2014
+*      Author: Fernando Amat
+*
+* \brief Test the main klb I/O library
+*
+*
+*/
+
+
+#include <string>
+#include <cstdint>
+#include <chrono>
+#include <algorithm>
+#include <random>
+
+#include "klb_imageIO.h"
+
+
+using namespace std;
+typedef std::chrono::high_resolution_clock Clock;
+
+int main(int argc, const char** argv)
+{
+	int numThreads = -1;//<= 0 indicates use as many as possible
+	KLB_COMPRESSION_TYPE compressionType = KLB_COMPRESSION_TYPE::BZIP2;//1->bzip2; 0->none
+	std::string filenameOut("test000.klb");
+	
+	//medium size
+	std::uint32_t	xyzct[KLB_DATA_DIMS] = {496, 258, 190, 1, 1};
+	std::uint32_t	blockSize[KLB_DATA_DIMS] = { 196, 96, 8, 1, 1 };
+	//filenameOut = string("G:/temp/SPM00_TM000280_CM01_CHN00");
+
+
+	//================================================
+	//common definitions
+	int err;
+	auto t1 = Clock::now();
+	auto t2 = Clock::now();
+	uint64_t dim, planeSize, offsetPlane;
+	long long int totalTime = 0;
+	int numPlanes;
+	uint16_t* imgB;
+	klb_ROI ROIfull;
+	//=========================================================================
+	
+	
+
+	
+	
+	//initialize I/O object
+	klb_imageIO imgIO( filenameOut );
+
+	//setup header
+	float32_t pixelSize_[KLB_DATA_DIMS];
+	for (int ii = 0; ii < KLB_DATA_DIMS; ii++)
+		pixelSize_[ii] = 1.0;//1.2f*(ii + 1);
+
+	char metadata_[KLB_METADATA_SIZE];
+	sprintf(metadata_, "Testing metadata");
+
+	imgIO.header.setHeader(xyzct, KLB_DATA_TYPE::INT16_TYPE, pixelSize_, blockSize, compressionType, metadata_);
+	memcpy(imgIO.header.xyzct, xyzct, sizeof(uint32_t)* KLB_DATA_DIMS);
+	memcpy(imgIO.header.blockSize, blockSize, sizeof(uint32_t)* KLB_DATA_DIMS);
+	imgIO.header.dataType = KLB_DATA_TYPE::INT16_TYPE;//uint16
+	imgIO.header.compressionType = compressionType;
+	
+
+
+	//generate artificial image: gradient is nice since we can debug very fast by visual inspection or random for uncompressibility
+	int16_t* img = new int16_t[imgIO.header.getImageSizePixels()];
+
+	//read raw data from file
+	ifstream infile("000.raw", ios::in|ios::binary);
+	if (infile.is_open())
+	{
+		infile.read((char*)img,imgIO.header.getImageSizePixels()*sizeof(int16_t));
+		infile.close();
+	}
+/*
+	if (filenameOut.compare("E:/compressionFormatData/debugGradient.klb") == 0)//generate synthetic image
+	{
+		std::random_device rd;
+		std::mt19937 gen(rd());
+		std::uniform_int_distribution<int> dis(-6, 6);
+		for (uint64_t ii = 0; ii < imgIO.header.getImageSizePixels(); ii++)
+		{
+			img[ii] = ii % 65535;
+			//add some noise
+			img[ii] += dis(gen);
+		}
+
+
+	}
+	else{//read image
+		imgIO.setFilename( string(filenameOut + ".klb") );
+		imgXYplane.setFilename ( string(filenameOut + ".klb") );
+		ifstream fin(string(filenameOut + ".raw").c_str(), ios::binary | ios::in);
+
+		if (fin.is_open() == false)
+		{
+			cout << "ERROR: opening file "<<filenameOut << endl;
+		}
+		fin.read((char*)img, sizeof(uint16_t)* imgIO.header.getImageSizePixels());
+		fin.close();
+
+		filenameOut += ".klb";
+	}
+*/
+
+	
+	cout << "Compressing file to " << filenameOut << endl;
+
+	//cout<<"WRITING FILE IN NETWORK"<<endl;
+	//imgIO.setFilename( string("Y:/Exchange/Philipp/Manuscripts/Article SiMView Processing Pipeline/MatlabCode/Benchmarks/temp/debug.klb") );
+	for (int aa = 0; aa < 1; aa++)
+	{
+		//char buffer[256];
+		//sprintf(buffer, "Y:/Exchange/Philipp/Manuscripts/Article SiMView Processing Pipeline/MatlabCode/Benchmarks/temp/debug%d.klb", aa);
+		//imgIO.setFilename(string(buffer));
+		t1 = Clock::now();
+		err = imgIO.writeImage((char*)img, numThreads);//all the threads available
+		if (err > 0)
+			return 2;
+
+		t2 = Clock::now();
+		std::cout << "Written test file at " << filenameOut << " compress + write file =" << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms using " << numThreads << " threads" << std::endl;
+
+	}
+
+	
+	delete[] img;
+
+	return 0;
+}
